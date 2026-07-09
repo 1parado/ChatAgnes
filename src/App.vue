@@ -398,6 +398,7 @@ async function sendPrompt(rawPrompt, options) {
       kind: 'video',
       status: 'loading',
       progress: 0,
+      statusText: '',
       videoUrl: '',
       seconds: '',
       error: '',
@@ -428,6 +429,10 @@ async function sendPrompt(rawPrompt, options) {
         signal: abortController.value.signal,
         onProgress: (p) => {
           assistant.progress = p
+          assistant.statusText = ''
+        },
+        onRateLimit: (seconds) => {
+          assistant.statusText = `状态查询限流，约 ${seconds} 秒后继续查询`
         }
       })
       assistant.videoUrl = result.url || ''
@@ -526,6 +531,7 @@ async function regenerate(messageId) {
     abortController.value = new AbortController()
     try {
       msg.progress = 0
+      msg.statusText = ''
       msg.videoUrl = ''
       msg.seconds = ''
       assertVideoCooldown()
@@ -548,6 +554,10 @@ async function regenerate(messageId) {
         signal: abortController.value.signal,
         onProgress: (p) => {
           msg.progress = p
+          msg.statusText = ''
+        },
+        onRateLimit: (seconds) => {
+          msg.statusText = `状态查询限流，约 ${seconds} 秒后继续查询`
         }
       })
       msg.videoUrl = result.url || ''

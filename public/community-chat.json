@@ -1,0 +1,37 @@
+[
+  {
+    "id": 1,
+    "question": "agnes-2.0-flash 支持哪些输入类型？",
+    "answer": "支持纯文本，以及通过 image_url 传入的公开可访问图像 URL。可以在同一条 messages 请求里混合文本与图像内容。",
+    "category": "模型",
+    "author": "Agnes"
+  },
+  {
+    "id": 2,
+    "question": "如何开启 Thinking 模式？",
+    "answer": "在请求体中加入 chat_template_kwargs: { enable_thinking: true } 即可在 OpenAI 兼容格式下启用，适合编码、调试、推理等任务。",
+    "category": "用法",
+    "author": "Agnes"
+  },
+  {
+    "id": 3,
+    "question": "上下文窗口有多大？",
+    "answer": "agnes-2.0-flash 的上下文窗口为 512K tokens，可处理很长的对话与文档。",
+    "category": "模型",
+    "author": "Agnes"
+  },
+  {
+    "id": 4,
+    "question": "它能直接生成图片吗？",
+    "answer": "agnes-2.0-flash 是文本 / 多模态对话模型，本身不输出图片；图片生成走独立的 images 接口。本站「生图」模式即调用该接口。",
+    "category": "模型",
+    "author": "Agnes"
+  },
+  {
+    "id": 5,
+    "question": "支持的常用参数有哪些？",
+    "answer": "model（必填）、messages（必填）、temperature、top_p、max_tokens、stream、tools 等，与 OpenAI Chat Completions 兼容。",
+    "category": "用法",
+    "author": "Agnes"
+  }
+]

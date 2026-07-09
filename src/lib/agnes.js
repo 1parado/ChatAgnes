@@ -248,15 +248,21 @@ async function createHttpError(response) {
     detail = ''
   }
   const retryAfter = Number.parseInt(response.headers.get('retry-after') || '', 10)
-  const isVideoRateLimit =
+  const isVideoCreateRateLimit =
     response.status === 429 && /video generation rate limit/i.test(detail)
-  const message = isVideoRateLimit
+  const isVideoStatusRateLimit =
+    response.status === 429 && /video status query rate limit/i.test(detail)
+  const message = isVideoCreateRateLimit
     ? '视频生成频率限制：每 1 分钟只能创建 1 个视频任务，请稍后再试。'
-    : `HTTP ${response.status}${detail ? '：' + detail : ''}`
+    : isVideoStatusRateLimit
+      ? '视频状态查询频率限制，系统会降低查询频率并继续等待结果。'
+      : `HTTP ${response.status}${detail ? '：' + detail : ''}`
   const error = new Error(message)
   error.status = response.status
   error.retryAfter = Number.isFinite(retryAfter) ? retryAfter : undefined
   error.isRateLimit = response.status === 429
+  error.isVideoCreateRateLimit = isVideoCreateRateLimit
+  error.isVideoStatusRateLimit = isVideoStatusRateLimit
   return error
 }
 
@@ -279,12 +285,34 @@ export async function getVideoResult({ video_id, task_id, apiKey, signal } = {})
  * 轮询视频结果，直到 completed / failed。
  * onProgress 回调用于更新进度百分比。
  */
-export async function pollVideo({ video_id, task_id, apiKey, signal, onProgress, interval = 3000, timeout = 360000 } = {}) {
+export async function pollVideo({
+  video_id,
+  task_id,
+  apiKey,
+  signal,
+  onProgress,
+  onRateLimit,
+  interval = 30000,
+  timeout = 600000
+} = {}) {
   const start = Date.now()
+  let nextInterval = interval
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 
-    const data = await getVideoResult({ video_id, task_id, apiKey, signal })
+    let data
+    try {
+      data = await getVideoResult({ video_id, task_id, apiKey, signal })
+      nextInterval = interval
+    } catch (err) {
+      if (!err?.isVideoStatusRateLimit) throw err
+      const waitSeconds = Math.max(err.retryAfter || 0, Math.ceil(nextInterval / 1000), 30)
+      onRateLimit?.(waitSeconds)
+      nextInterval = Math.max(interval, waitSeconds * 1000)
+      if (Date.now() - start > timeout) throw new Error('视频生成超时')
+      await delay(waitSeconds * 1000, signal)
+      continue
+    }
     if (typeof data.progress === 'number') onProgress?.(data.progress)
 
     if (data.status === 'completed') {
@@ -296,18 +324,22 @@ export async function pollVideo({ video_id, task_id, apiKey, signal, onProgress,
     }
     if (Date.now() - start > timeout) throw new Error('视频生成超时')
 
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(resolve, interval)
-      if (signal) {
-        signal.addEventListener(
-          'abort',
-          () => {
-            clearTimeout(t)
-            reject(new DOMException('Aborted', 'AbortError'))
-          },
-          { once: true }
-        )
-      }
-    })
+    await delay(nextInterval, signal)
   }
+}
+
+function delay(ms, signal) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms)
+    if (signal) {
+      signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(t)
+          reject(new DOMException('Aborted', 'AbortError'))
+        },
+        { once: true }
+      )
+    }
+  })
 }

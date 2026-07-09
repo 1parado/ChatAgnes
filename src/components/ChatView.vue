@@ -88,7 +88,7 @@
               <div v-else-if="m.kind === 'video'" class="video-answer">
                 <div v-if="m.status === 'loading'" class="video-progress">
                   <div class="vp-bar"><div class="vp-fill" :style="{ width: (m.progress || 0) + '%' }" /></div>
-                  <span class="vp-text">视频生成中 {{ m.progress || 0 }}%</span>
+                  <span class="vp-text">{{ m.statusText || `视频生成中 ${m.progress || 0}%` }}</span>
                 </div>
                 <div v-else-if="m.status === 'cancelled'" class="status-box">
                   <span>{{ m.error }}</span>

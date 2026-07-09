@@ -1,0 +1,14 @@
+[
+  { "id": 1, "title": "晨雾中的山谷", "prompt": "清晨薄雾笼罩的山谷，柔和光线，电影感风景摄影", "image": "https://picsum.photos/seed/agnes-valley/800/1000", "category": "风景", "author": "Agnes" },
+  { "id": 2, "title": "霓虹赛博都市", "prompt": "赛博朋克城市夜景，霓虹灯与雨水倒影，科幻概念图", "image": "https://picsum.photos/seed/agnes-cyber/800/600", "category": "科幻", "author": "Agnes" },
+  { "id": 3, "title": "窗边的橘猫", "prompt": "一只橘猫在窗边晒太阳，温暖水彩插画风格", "image": "https://picsum.photos/seed/agnes-cat/800/800", "category": "动物", "author": "Agnes" },
+  { "id": 4, "title": "极简山顶日出", "prompt": "极简插画：一个人独自在山顶看日出，留白构图", "image": "https://picsum.photos/seed/agnes-sunrise/800/1100", "category": "风景", "author": "Agnes" },
+  { "id": 5, "title": "未来女性肖像", "prompt": "未来感女性肖像，金属质感妆容，工作室打光", "image": "https://picsum.photos/seed/agnes-portrait/800/1000", "category": "人物", "author": "Agnes" },
+  { "id": 6, "title": "流动的色彩", "prompt": "抽象流体艺术，渐变色彩，有机形态", "image": "https://picsum.photos/seed/agnes-abstract/800/700", "category": "抽象", "author": "Agnes" },
+  { "id": 7, "title": "悬浮玻璃建筑", "prompt": "悬浮于云端的玻璃美术馆，极简建筑摄影", "image": "https://picsum.photos/seed/agnes-arch/800/900", "category": "建筑", "author": "Agnes" },
+  { "id": 8, "title": "星空下的灯塔", "prompt": "星空下孤独的灯塔，长曝光，梦幻氛围", "image": "https://picsum.photos/seed/agnes-lighthouse/800/1050", "category": "风景", "author": "Agnes" },
+  { "id": 9, "title": "机械飞鸟", "prompt": "蒸汽朋克风格的机械飞鸟，黄铜与齿轮细节", "image": "https://picsum.photos/seed/agnes-bird/800/800", "category": "科幻", "author": "Agnes" },
+  { "id": 10, "title": "和风少女", "prompt": "和风少女半身像，柔和樱花背景，动漫风格", "image": "https://picsum.photos/seed/agnes-anime/800/1000", "category": "二次元", "author": "Agnes" },
+  { "id": 11, "title": "熔岩甜点", "prompt": "发光的熔岩主题甜点静物，美食摄影", "image": "https://picsum.photos/seed/agnes-food/800/650", "category": "美食", "author": "Agnes" },
+  { "id": 12, "title": "深海发光生物", "prompt": "深海发光的奇异生物，生物荧光，暗调", "image": "https://picsum.photos/seed/agnes-deep/800/950", "category": "动物", "author": "Agnes" }
+]

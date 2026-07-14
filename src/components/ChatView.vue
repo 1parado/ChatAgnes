@@ -179,7 +179,10 @@
                   </div>
 
                   <div class="msg__foot">
-                    <span class="meta">{{ sizeLabelOf(m.options) }} · {{ m.options?.n || 1 }} 张</span>
+                    <span class="meta">
+                      {{ sizeLabelOf(m.options) }} · {{ m.options?.n || 1 }} 张
+                      <template v-if="skillNameOf(m)"> · {{ skillNameOf(m) }}</template>
+                    </span>
                     <button class="text-btn" @click="$emit('regenerate', m.id)">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0 1 15-3.4L23 10M1 14l4.5 4.4A9 9 0 0 0 20.5 15"/></svg>
                       重新生成
@@ -214,6 +217,14 @@
 
     <!-- 输入区 -->
     <div class="composer">
+      <div v-if="mode === 'image'" class="skill-dock" :class="{ 'skill-dock--active': activeSkill }">
+        <button class="skill-dock__main" @click="$emit('browse-skills')">
+          <span class="skill-dock__spark">✦</span>
+          <span v-if="activeSkill"><b>{{ activeSkill.name }}</b><small>{{ activeSkill.category }} Skill 已启用</small></span>
+          <span v-else><b>选择绘图 Skill</b><small>为提示词添加稳定的画风配方</small></span>
+        </button>
+        <button v-if="activeSkill" class="skill-dock__clear" aria-label="取消当前 Skill" @click="$emit('clear-skill')">×</button>
+      </div>
       <div v-if="mode === 'video'" class="video-opts">
         <div v-if="videoCooldown > 0" class="cooldown">
           视频生成每分钟最多创建 1 个任务，还需等待 {{ videoCooldown }} 秒
@@ -263,6 +274,32 @@
           placeholder="关键帧图片 URL，每行一个，至少 2 个"
         />
       </div>
+
+      <transition name="pop">
+        <div v-if="skillMenuOpen" class="skill-command" role="listbox" aria-label="选择绘图 Skill">
+          <div class="skill-command__head">
+            <div><b>/skills</b><span>{{ skillQuery ? `搜索“${skillQuery}”` : '选择一个画风配方' }}</span></div>
+            <small>↑↓ 选择 · Enter 使用 · Esc 关闭</small>
+          </div>
+          <div v-if="commandSkills.length" class="skill-command__grid">
+            <button
+              v-for="(skill, index) in commandSkills"
+              :key="skill.id"
+              class="skill-command__item"
+              :class="{ active: index === commandSkillIndex, selected: activeSkill?.id === skill.id }"
+              role="option"
+              :aria-selected="activeSkill?.id === skill.id"
+              @mouseenter="commandSkillIndex = index"
+              @click="selectCommandSkill(skill)"
+            >
+              <img :src="skill.cover" alt="" />
+              <span class="skill-command__copy"><b>{{ skill.name }}</b><small>{{ skill.category }} · {{ skill.bestFor }}</small></span>
+              <span v-if="activeSkill?.id === skill.id" class="skill-command__check">✓</span>
+            </button>
+          </div>
+          <p v-else class="skill-command__empty">没有匹配的 Skill，试试输入“漫画”“像素”或“电影”。</p>
+        </div>
+      </transition>
 
       <div class="composer__box">
         <div class="composer__opts" v-if="mode === 'image'">
@@ -316,7 +353,7 @@
             :placeholder="placeholder"
             :disabled="loading"
             @input="autoGrow"
-            @keydown.enter.exact.prevent="submit"
+            @keydown="handleComposerKeydown"
           />
 
         <button
@@ -344,19 +381,22 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { SIZE_OPTIONS, COUNT_OPTIONS } from '../lib/agnes'
 import { uploadToImageBed, blobToBase64, randomImagePath } from '../lib/imageBed'
 import { IMAGEBED_TOKEN } from '../config'
+import { BUILTIN_SKILLS, getSkill } from '../lib/skills'
 
 const props = defineProps({
   chat: { type: Object, default: null },
   loading: { type: Boolean, default: false },
   mode: { type: String, default: 'image' },
-  videoCooldown: { type: Number, default: 0 }
+  videoCooldown: { type: Number, default: 0 },
+  activeSkill: { type: Object, default: null }
 })
-const emit = defineEmits(['send', 'stop', 'regenerate', 'delete-message', 'open-image', 'toast'])
+const emit = defineEmits(['send', 'stop', 'regenerate', 'delete-message', 'open-image', 'toast', 'browse-skills', 'clear-skill', 'select-skill'])
 
 const scrollEl = ref(null)
 const inputEl = ref(null)
 const prompt = ref('')
 const optionsOpen = ref(false)
+const commandSkillIndex = ref(0)
 const options = ref({
   size: '1024x1024',
   n: 1,
@@ -419,9 +459,20 @@ const emptySub = computed(() => {
 
 const placeholder = computed(() => {
   if (props.loading) return '生成中…'
-  if (props.mode === 'image') return '描述你想生成的画面…（多行=不同提示词）'
+  if (props.mode === 'image') return '描述画面，或输入 /skills 选择画风…'
   if (props.mode === 'video') return '描述视频内容、动作、镜头运动和画面风格…'
   return '和 agnes-2.0-flash 聊点什么…'
+})
+
+const skillCommand = computed(() => props.mode === 'image' ? prompt.value.match(/^\/skills(?:\s+(.*))?$/i) : null)
+const skillMenuOpen = computed(() => Boolean(skillCommand.value))
+const skillQuery = computed(() => String(skillCommand.value?.[1] || '').trim().toLowerCase())
+const commandSkills = computed(() => {
+  if (!skillQuery.value) return BUILTIN_SKILLS
+  return BUILTIN_SKILLS.filter((skill) => {
+    const haystack = [skill.name, skill.category, skill.description, skill.bestFor, ...skill.tags].join(' ').toLowerCase()
+    return haystack.includes(skillQuery.value)
+  })
 })
 
 function splitUrls(value) {
@@ -433,6 +484,7 @@ function splitUrls(value) {
 
 const canSend = computed(() => {
   if (!prompt.value.trim() || props.loading) return false
+  if (skillMenuOpen.value) return false
   if (props.mode === 'video' && props.videoCooldown > 0) return false
   if (props.mode !== 'video') return true
   if (options.value.videoMode === 'image') return Boolean(options.value.image.trim())
@@ -452,6 +504,10 @@ function sizeLabelOf(opts) {
   return SIZE_OPTIONS.find((s) => s.value === opts.size)?.label || '正方形'
 }
 
+function skillNameOf(message) {
+  return getSkill(message.skillId || message.options?.skillId)?.name || ''
+}
+
 function videoModeLabelOf(opts) {
   return VIDEO_MODE_OPTIONS.find((m) => m.value === (opts?.videoMode || 'text'))?.label || '文生视频'
 }
@@ -469,9 +525,54 @@ function useSuggestion(text) {
   inputEl.value?.focus()
 }
 
+function selectCommandSkill(skill) {
+  prompt.value = ''
+  commandSkillIndex.value = 0
+  emit('select-skill', skill)
+  nextTick(() => {
+    autoGrow()
+    inputEl.value?.focus()
+  })
+}
+
+function handleComposerKeydown(event) {
+  if (skillMenuOpen.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (commandSkills.value.length) commandSkillIndex.value = (commandSkillIndex.value + 1) % commandSkills.value.length
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (commandSkills.value.length) commandSkillIndex.value = (commandSkillIndex.value - 1 + commandSkills.value.length) % commandSkills.value.length
+      return
+    }
+    if (event.key === 'Enter' && !event.isComposing) {
+      event.preventDefault()
+      const skill = commandSkills.value[commandSkillIndex.value]
+      if (skill) selectCommandSkill(skill)
+      return
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      prompt.value = ''
+      return
+    }
+  }
+
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    submit()
+  }
+}
+
 function submit() {
   if (!canSend.value) return
-  emit('send', prompt.value, { ...options.value, mode: props.mode })
+  emit('send', prompt.value, {
+    ...options.value,
+    mode: props.mode,
+    skillId: props.mode === 'image' ? props.activeSkill?.id || '' : ''
+  })
   prompt.value = ''
   nextTick(() => {
     autoGrow()
@@ -550,9 +651,106 @@ watch(
     if (atBottom.value) scrollToBottom()
   }
 )
+watch(skillQuery, () => (commandSkillIndex.value = 0))
 </script>
 
 <style scoped>
+.skill-dock {
+  max-width: 760px;
+  margin: 0 auto 10px;
+  display: flex;
+  align-items: stretch;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.skill-dock--active {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+}
+.skill-dock__main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.skill-dock__main > span:not(.skill-dock__spark) {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.skill-dock__main b { font-size: 12px; }
+.skill-dock__main small { color: var(--text-soft); font-size: 11px; }
+.skill-dock__spark { color: var(--accent); font-size: 16px; }
+.skill-dock__clear {
+  width: 38px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 20%, var(--border));
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 20px;
+}
+.skill-dock__main:hover, .skill-dock__clear:hover { background: rgba(16, 163, 127, .07); }
+.skill-command {
+  max-width: 760px;
+  max-height: min(430px, 52vh);
+  margin: 0 auto 10px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--bg);
+  box-shadow: 0 18px 48px rgba(20, 35, 30, .16);
+}
+.skill-command__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 94%, var(--accent-soft));
+}
+.skill-command__head > div { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.skill-command__head b { color: var(--accent); font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.skill-command__head span, .skill-command__head small { color: var(--text-soft); font-size: 11px; }
+.skill-command__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 7px; gap: 4px; }
+.skill-command__item {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.skill-command__item:hover, .skill-command__item.active { border-color: var(--border); background: var(--bg-soft); }
+.skill-command__item.selected { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.skill-command__item img { width: 58px; height: 46px; flex: 0 0 auto; object-fit: cover; border-radius: 8px; }
+.skill-command__copy { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 4px; }
+.skill-command__copy b { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.skill-command__copy small { overflow: hidden; color: var(--text-soft); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.skill-command__check { color: var(--accent); font-size: 14px; font-weight: 700; }
+.skill-command__empty { margin: 0; padding: 24px; color: var(--text-soft); font-size: 12px; text-align: center; }
+@media (max-width: 680px) {
+  .skill-dock__main > span:not(.skill-dock__spark) { align-items: flex-start; flex-direction: column; gap: 2px; }
+  .skill-command__head small { display: none; }
+  .skill-command__grid { grid-template-columns: 1fr; }
+}
 .chat {
   position: relative;
   flex: 1;

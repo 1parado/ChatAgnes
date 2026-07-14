@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">
+  <defs><filter id="b"><feGaussianBlur stdDeviation="9"/></filter></defs>
+  <rect width="320" height="240" fill="#f2f1e9"/>
+  <path d="M-12 174Q44 94 101 154T208 124t124 23v93H-12Z" fill="#68736e" opacity=".34" filter="url(#b)"/>
+  <path d="M-8 194Q51 118 112 177t99-31q59-46 117 22v72H-8Z" fill="#252e2b" opacity=".78"/>
+  <path d="M0 210q78-20 156-2t164-7v39H0Z" fill="#d9ddd4"/>
+  <path d="M166 184c17 0 31 3 43 9h-85c12-6 26-9 42-9Z" fill="#313a37"/>
+  <path d="M166 166v21m0-14 12-8" stroke="#313a37" stroke-width="3"/>
+  <circle cx="250" cy="53" r="22" fill="#b85f4b" opacity=".72"/>
+</svg>

@@ -1,7 +1,7 @@
 <template>
   <div class="app" :class="{ 'sidebar-open': sidebarOpen, 'sidebar-collapsed': collapsed }">
     <Sidebar
-      v-if="view !== 'gallery'"
+      v-if="showConversationChrome"
       :chats="chats"
       :active-id="activeId"
       :open="sidebarOpen"
@@ -14,7 +14,7 @@
 
     <main class="main">
       <header class="topbar">
-        <button v-if="view !== 'gallery'" class="icon-btn" aria-label="菜单" @click="toggleSidebar">
+        <button v-if="showConversationChrome" class="icon-btn" aria-label="菜单" @click="toggleSidebar">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6" />
             <line x1="3" y1="12" x2="21" y2="12" />
@@ -28,13 +28,14 @@
           <button class="tab" :class="{ active: view === 'chat' }" @click="view = 'chat'">对话</button>
           <button class="tab" :class="{ active: view === 'image' }" @click="view = 'image'">生图</button>
           <button class="tab" :class="{ active: view === 'video' }" @click="view = 'video'">视频</button>
+          <button class="tab" :class="{ active: view === 'skills' }" @click="view = 'skills'">Skills</button>
           <button class="tab" :class="{ active: view === 'gallery' }" @click="view = 'gallery'">画廊</button>
         </nav>
 
         <span class="model-badge" title="模型已固定">{{ activeModel }}</span>
 
         <div class="topbar__actions">
-          <button v-if="view !== 'gallery'" class="icon-btn" aria-label="新建对话" @click="newChat">
+          <button v-if="showConversationChrome" class="icon-btn" aria-label="新建对话" @click="newChat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 5v14M5 12h14" />
             </svg>
@@ -48,13 +49,18 @@
         :loading="loading"
         :mode="view === 'image' ? 'image' : view === 'video' ? 'video' : 'text'"
         :video-cooldown="videoCooldownRemaining"
+        :active-skill="activeSkill"
         @send="sendPrompt"
         @stop="stopGeneration"
         @regenerate="regenerate"
         @delete-message="deleteMessage"
         @open-image="openLightbox"
         @toast="showToast"
+        @browse-skills="view = 'skills'"
+        @clear-skill="activeSkillId = ''"
+        @select-skill="selectSkill"
       />
+      <SkillsView v-else-if="view === 'skills'" :active-skill-id="activeSkillId" @select="selectSkill" />
       <Gallery v-else @goto-chat="view = 'image'" @toast="showToast" />
     </main>
 
@@ -93,8 +99,10 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import Sidebar from './components/Sidebar.vue'
 import ChatView from './components/ChatView.vue'
 import Gallery from './components/Gallery.vue'
+import SkillsView from './components/SkillsView.vue'
 import { MODEL, MODEL_CHAT, MODEL_VIDEO, generateImage, chatText, createVideo, pollVideo } from './lib/agnes'
 import { loadChats, saveChats, createId } from './lib/storage'
+import { applySkill, getSkill } from './lib/skills'
 
 const chats = ref(loadChats())
 const activeId = ref(chats.value[0]?.id || null)
@@ -105,11 +113,16 @@ const lightbox = ref(null)
 const loading = ref(false)
 const abortController = ref(null)
 const toast = ref('')
+const activeSkillId = ref(localStorage.getItem('agnes_active_skill') || '')
 let toastTimer = null
 let clockTimer = null
 
 const activeChat = computed(() => chats.value.find((c) => c.id === activeId.value) || null)
+const activeSkill = computed(() => getSkill(activeSkillId.value))
+const showConversationChrome = computed(() => ['chat', 'image', 'video'].includes(view.value))
 const activeModel = computed(() => {
+  if (view.value === 'skills') return '风格配方库'
+  if (view.value === 'gallery') return '作品画廊'
   if (view.value === 'chat') return MODEL_CHAT
   if (view.value === 'video') return MODEL_VIDEO
   return MODEL
@@ -134,6 +147,17 @@ watch(
   (val) => saveChats(val),
   { deep: true }
 )
+
+watch(activeSkillId, (value) => {
+  if (value) localStorage.setItem('agnes_active_skill', value)
+  else localStorage.removeItem('agnes_active_skill')
+})
+
+function selectSkill(skill) {
+  activeSkillId.value = skill.id
+  view.value = 'image'
+  showToast(`已启用「${skill.name}」Skill`)
+}
 
 function showToast(msg) {
   toast.value = msg
@@ -454,6 +478,7 @@ async function sendPrompt(rawPrompt, options) {
   }
 
   // 生图模式：按行拆分，每行一个独立提示词
+  const skill = getSkill(options.skillId)
   const lines = text.split('\n').map((s) => s.trim()).filter(Boolean)
   let perLine = options.n || 1
   if (lines.length * perLine > MAX_TOTAL) {
@@ -462,6 +487,7 @@ async function sendPrompt(rawPrompt, options) {
   }
 
   const assistants = lines.map((line) => {
+    const generatedPrompt = applySkill(line, skill)
     const a = {
       id: createId(),
       role: 'assistant',
@@ -470,7 +496,9 @@ async function sendPrompt(rawPrompt, options) {
       images: [],
       revisedPrompt: '',
       error: '',
-      prompt: line,
+      prompt: generatedPrompt,
+      sourcePrompt: line,
+      skillId: skill?.id || '',
       options: { ...options, n: perLine },
       createdAt: Date.now()
     }
